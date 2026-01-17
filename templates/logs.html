@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}System Logs - Payroll System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2>System Logs</h2>
+        <p class="text-muted">View system events, errors, and activities</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <form method="get" class="row g-2" style="align-items: center;">
+                    <div class="col-auto">
+                        <label for="level" class="form-label">Filter by Level:</label>
+                    </div>
+                    <div class="col-auto">
+                        <select name="level" id="level" class="form-select">
+                            <option value="">All Levels</option>
+                            <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>INFO</option>
+                            <option value="WARNING" {% if selected_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                            <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-body">
+                {% if logs %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Level</th>
+                                <th>Module</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>
+                                    <small>{{ log[1] }}</small>
+                                </td>
+                                <td>
+                                    {% if log[2] == 'ERROR' %}
+                                        <span class="badge bg-danger">{{ log[2] }}</span>
+                                    {% elif log[2] == 'WARNING' %}
+                                        <span class="badge bg-warning">{{ log[2] }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ log[2] }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><strong>{{ log[3] }}</strong></td>
+                                <td>{{ log[4] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info" role="alert">
+                    No logs found.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

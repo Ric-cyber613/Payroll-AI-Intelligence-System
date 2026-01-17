@@ -1,6 +1,8 @@
 flask
+flask-session
 opencv-python
 numpy
 face-recognition
 cmake
 dlib
+werkzeug

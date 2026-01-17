@@ -4,10 +4,10 @@
 <div class="row">
     <div class="col-md-12">
         <div class="jumbotron bg-light p-5 rounded">
-            <h1 class="display-4">Welcome to Payroll System</h1>
+            <h1 class="display-4">Welcome to Payroll AI System</h1>
             <p class="lead">Complete payroll management with facial recognition attendance tracking.</p>
             <hr class="my-4">
-            <p>Get started by setting up your staff and configuring the system.</p>
+            <p>Hello, <strong>{{ session.get('username', 'User') }}</strong>! Get started by managing your staff and viewing the dashboard.</p>
             <a class="btn btn-primary btn-lg" href="/dashboard" role="button">View Dashboard</a>
         </div>
     </div>

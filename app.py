@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
 from database import Database
 from facial_recognition import FaceRecognitionSystem
 from camera import IPCameraSystem
@@ -6,19 +6,135 @@ import sqlite3
 from datetime import datetime, timedelta
 import csv
 import io
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 app = Flask(__name__)
+app.secret_key = 'payroll_ai_system_secret_key_2026'  # Change this to a secure key in production
 db = Database()
 face_system = FaceRecognitionSystem()
 camera_system = IPCameraSystem()
 
 
+# Authentication decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration page"""
+    if request.method == 'POST':
+        data = request.json if request.is_json else request.form
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        confirm_password = data.get('confirm_password', '')
+
+        # Validation
+        if not all([username, email, password]):
+            return jsonify({'success': False, 'message': 'All fields are required'}) if request.is_json else None
+        
+        if password != confirm_password:
+            return jsonify({'success': False, 'message': 'Passwords do not match'}) if request.is_json else None
+
+        if len(password) < 6:
+            return jsonify({'success': False, 'message': 'Password must be at least 6 characters'}) if request.is_json else None
+
+        try:
+            conn = sqlite3.connect(db.db_path)
+            cursor = conn.cursor()
+
+            # Check if user already exists
+            cursor.execute('SELECT id FROM users WHERE username = ? OR email = ?', (username, email))
+            if cursor.fetchone():
+                return jsonify({'success': False, 'message': 'Username or email already exists'}) if request.is_json else None
+
+            # Hash password and insert user
+            hashed_password = generate_password_hash(password)
+            cursor.execute('''
+                INSERT INTO users (username, email, password, role)
+                VALUES (?, ?, ?, ?)
+            ''', (username, email, hashed_password, 'user'))
+            conn.commit()
+            conn.close()
+
+            db.log_event('INFO', 'Auth', f'New user registered: {username}')
+            
+            if request.is_json:
+                return jsonify({'success': True, 'message': 'Registration successful! Please login.'})
+            else:
+                return redirect(url_for('login'))
+
+        except Exception as e:
+            db.log_event('ERROR', 'Auth', f'Registration error: {str(e)}')
+            return jsonify({'success': False, 'message': str(e)}) if request.is_json else None
+
+    return render_template('register.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """User login page"""
+    if request.method == 'POST':
+        data = request.json if request.is_json else request.form
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+
+        if not all([username, password]):
+            return jsonify({'success': False, 'message': 'Username and password are required'}) if request.is_json else None
+
+        try:
+            conn = sqlite3.connect(db.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT id, username, password, role FROM users WHERE username = ?', (username,))
+            user = cursor.fetchone()
+            conn.close()
+
+            if user and check_password_hash(user[2], password):
+                session['user_id'] = user[0]
+                session['username'] = user[1]
+                session['role'] = user[3]
+                db.log_event('INFO', 'Auth', f'User logged in: {username}')
+                
+                if request.is_json:
+                    return jsonify({'success': True, 'message': 'Login successful', 'redirect': url_for('index')})
+                else:
+                    return redirect(url_for('index'))
+            else:
+                db.log_event('WARNING', 'Auth', f'Failed login attempt: {username}')
+                return jsonify({'success': False, 'message': 'Invalid username or password'}) if request.is_json else None
+
+        except Exception as e:
+            db.log_event('ERROR', 'Auth', f'Login error: {str(e)}')
+            return jsonify({'success': False, 'message': str(e)}) if request.is_json else None
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    """Logout user"""
+    username = session.get('username', 'Unknown')
+    session.clear()
+    db.log_event('INFO', 'Auth', f'User logged out: {username}')
+    return redirect(url_for('login'))
+
+
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
 
 @app.route('/dashboard')
+@login_required
 def dashboard():
     """Main dashboard"""
     conn = sqlite3.connect(db.db_path)
@@ -53,6 +169,7 @@ def dashboard():
 
 
 @app.route('/staff')
+@login_required
 def staff_management():
     """Staff management page"""
     conn = sqlite3.connect(db.db_path)
@@ -87,6 +204,7 @@ def add_staff():
 
 
 @app.route('/attendance')
+@login_required
 def attendance_view():
     """Attendance records page"""
     date_filter = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
@@ -109,6 +227,7 @@ def attendance_view():
 
 
 @app.route('/payroll')
+@login_required
 def payroll_management():
     """Payroll management page"""
     month_year = request.args.get('month_year', datetime.now().strftime('%Y-%m'))
@@ -211,6 +330,7 @@ def upload_face_image():
 
 
 @app.route('/logs')
+@login_required
 def system_logs():
     """System logs page"""
     level_filter = request.args.get('level', '')
